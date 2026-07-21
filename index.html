@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz em Sinais — A B C D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0d1117;
+    --panel:#141b24;
+    --panel-2:#1b2430;
+    --line: rgba(255,255,255,0.08);
+    --lime:#d4ff4f;
+    --lime-dim: rgba(212,255,79,0.15);
+    --coral:#ff6b57;
+    --cyan:#4fd9ff;
+    --text:#eef2f0;
+    --text-dim:#8b97a5;
+    --radius: 22px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 12% -10%, rgba(212,255,79,0.10), transparent 40%),
+      radial-gradient(circle at 100% 10%, rgba(79,217,255,0.08), transparent 45%),
+      var(--ink);
+    color:var(--text);
+    font-family:'Bricolage Grotesque', sans-serif;
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+  .noise{
+    position:fixed; inset:0; pointer-events:none; opacity:0.035; z-index:1;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .wrap{
+    position:relative; z-index:2;
+    max-width:1100px; margin:0 auto; padding:36px 24px 60px;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:28px;
+    flex-wrap:wrap; gap:14px;
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand .dot{width:14px; height:14px; border-radius:50%; background:var(--lime); box-shadow:0 0 18px var(--lime);}
+  .brand h1{font-size:1.15rem; font-weight:700; margin:0; letter-spacing:0.02em;}
+  .brand small{display:block; color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:0.72rem; letter-spacing:0.05em; margin-top:2px;}
+  .score-pill{
+    font-family:'JetBrains Mono',monospace; font-size:0.85rem; background:var(--panel);
+    border:1px solid var(--line); padding:9px 16px; border-radius:100px; display:flex; gap:10px; align-items:center;
+  }
+  .score-pill b{color:var(--lime); font-size:1rem;}
+
+  .hero{
+    text-align:center; padding:50px 20px 40px;
+  }
+  .hero h2{
+    font-size:clamp(2.1rem, 5vw, 3.4rem); font-weight:800; line-height:1.05; margin:0 0 14px;
+    letter-spacing:-0.02em;
+  }
+  .hero h2 span{color:var(--lime); font-style:italic;}
+  .hero p{color:var(--text-dim); max-width:520px; margin:0 auto 30px; line-height:1.6; font-size:1.02rem;}
+  .letters-preview{display:flex; gap:14px; justify-content:center; margin-bottom:36px; flex-wrap:wrap;}
+  .letters-preview div{
+    width:56px; height:56px; border-radius:16px; display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:1.4rem; background:var(--panel);
+    border:1px solid var(--line); color:var(--text-dim);
+  }
+  .btn{
+    font-family:'Bricolage Grotesque',sans-serif; font-weight:700; font-size:1.05rem; cursor:pointer;
+    border:none; border-radius:100px; padding:16px 34px; background:var(--lime); color:#0d1117;
+    box-shadow:0 8px 0 #9db63a; transition:transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  .btn:active{transform:translateY(6px); box-shadow:0 2px 0 #9db63a;}
+  .btn:disabled{opacity:0.5; cursor:not-allowed; box-shadow:none;}
+  .btn.secondary{background:transparent; color:var(--text); border:1px solid var(--line); box-shadow:none; padding:14px 28px;}
+  .btn.secondary:hover{border-color:var(--lime);}
+
+  .status-msg{font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--cyan); margin-top:18px; min-height:20px;}
+
+  .quiz-area{display:none; gap:26px;}
+  .quiz-area.active{display:grid; grid-template-columns: 1.05fr 1fr; align-items:start;}
+  @media (max-width: 860px){ .quiz-area.active{grid-template-columns: 1fr;} }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:22px;
+  }
+
+  /* Webcam panel */
+  .cam-panel{position:relative;}
+  .cam-frame{
+    position:relative; border-radius:16px; overflow:hidden; background:#000; aspect-ratio:4/3;
+    border:1px solid var(--line);
+  }
+  .cam-frame video, .cam-frame canvas{width:100%; height:100%; object-fit:cover; display:block;}
+  .cam-frame canvas{position:absolute; inset:0;}
+
+  .detect-overlay{
+    position:absolute; top:14px; left:14px; right:14px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
+  }
+  .tag{
+    font-family:'JetBrains Mono',monospace; font-size:0.72rem; background:rgba(13,17,23,0.75); backdrop-filter:blur(4px);
+    padding:6px 12px; border-radius:100px; border:1px solid rgba(255,255,255,0.15); letter-spacing:0.04em;
+  }
+  .hold-ring-wrap{
+    position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+  }
+  .hold-ring{position:relative; width:88px; height:88px;}
+  .hold-ring svg{transform:rotate(-90deg);}
+  .hold-ring .bg{fill:none; stroke:rgba(255,255,255,0.12); stroke-width:8;}
+  .hold-ring .fg{fill:none; stroke:var(--lime); stroke-width:8; stroke-linecap:round; transition:stroke-dashoffset 0.05s linear;}
+  .hold-ring .letter{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace; font-size:1.8rem; font-weight:700;
+  }
+  .hold-label{font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:var(--text-dim); letter-spacing:0.08em;}
+
+  .cam-hint{margin-top:14px; color:var(--text-dim); font-size:0.85rem; text-align:center; line-height:1.5;}
+
+  /* Question panel */
+  .q-panel{display:flex; flex-direction:column; min-height:420px;}
+  .q-meta{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;}
+  .q-count{font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--text-dim);}
+  .progress-bar{height:5px; background:var(--panel-2); border-radius:10px; overflow:hidden; margin-bottom:22px;}
+  .progress-bar i{display:block; height:100%; background:var(--lime); transition:width 0.4s ease;}
+
+  .q-text{font-size:1.35rem; font-weight:700; line-height:1.4; margin-bottom:24px; flex:0 0 auto;}
+
+  .options{display:flex; flex-direction:column; gap:12px;}
+  .opt{
+    display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:14px;
+    background:var(--panel-2); border:1.5px solid var(--line); transition:all 0.15s ease;
+  }
+  .opt .letter-badge{
+    width:36px; height:36px; border-radius:10px; background:var(--ink); display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--text-dim); flex-shrink:0; border:1px solid var(--line);
+  }
+  .opt span.txt{font-size:0.98rem; line-height:1.4;}
+  .opt.focused{border-color:var(--cyan); background:rgba(79,217,255,0.08);}
+  .opt.focused .letter-badge{background:var(--cyan); color:#0d1117;}
+  .opt.correct{border-color:var(--lime); background:rgba(212,255,79,0.1);}
+  .opt.correct .letter-badge{background:var(--lime); color:#0d1117;}
+  .opt.wrong{border-color:var(--coral); background:rgba(255,107,87,0.1);}
+  .opt.wrong .letter-badge{background:var(--coral); color:#0d1117;}
+
+  .feedback{
+    margin-top:20px; padding:14px 16px; border-radius:14px; font-family:'JetBrains Mono',monospace; font-size:0.85rem;
+    display:none; align-items:center; gap:10px;
+  }
+  .feedback.show{display:flex;}
+  .feedback.good{background:rgba(212,255,79,0.1); color:var(--lime); border:1px solid rgba(212,255,79,0.3);}
+  .feedback.bad{background:rgba(255,107,87,0.1); color:var(--coral); border:1px solid rgba(255,107,87,0.3);}
+
+  .next-hint{margin-top:auto; padding-top:18px; color:var(--text-dim); font-size:0.78rem; font-family:'JetBrains Mono',monospace; text-align:center;}
+
+  /* End screen */
+  .end-screen{display:none; text-align:center; padding:60px 20px;}
+  .end-screen.active{display:block;}
+  .end-score{font-size:4.2rem; font-weight:800; color:var(--lime); line-height:1; margin:18px 0 6px;}
+  .end-screen p{color:var(--text-dim);}
+
+  footer{text-align:center; margin-top:50px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:0.7rem;}
+</style>
+</head>
+<body>
+<div class="noise"></div>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1>Quiz em Sinais</h1>
+        <small>RECONHECIMENTO A · B · C · D — WEBCAM</small>
+      </div>
+    </div>
+    <div class="score-pill" id="scorePill" style="display:none;">
+      Pontuação <b id="scoreVal">0</b> / <span id="scoreTotal">0</span>
+    </div>
+  </header>
+
+  <!-- START SCREEN -->
+  <div class="hero" id="startScreen">
+    <h2>Responda com a <span>mão</span>,<br>não com o mouse.</h2>
+    <p>Este quiz é respondido inteiramente por sinais feitos com a mão diante da câmera. Aponte o sinal correspondente à letra da alternativa e segure por 3 segundos para confirmar.</p>
+    <div class="letters-preview">
+      <div>A</div><div>B</div><div>C</div><div>D</div>
+    </div>
+    <button class="btn" id="startBtn">Ativar câmera e começar</button>
+    <div class="status-msg" id="statusMsg"></div>
+  </div>
+
+  <!-- QUIZ SCREEN -->
+  <div class="quiz-area" id="quizArea">
+    <div class="panel cam-panel">
+      <div class="cam-frame">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="detect-overlay">
+          <div class="tag" id="detTag">detectando…</div>
+          <div class="tag" id="confTag">conf. 0%</div>
+        </div>
+        <div class="hold-ring-wrap">
+          <div class="hold-ring">
+            <svg width="88" height="88" viewBox="0 0 88 88">
+              <circle class="bg" cx="44" cy="44" r="38"></circle>
+              <circle class="fg" id="ringFg" cx="44" cy="44" r="38" stroke-dasharray="238.76" stroke-dashoffset="238.76"></circle>
+            </svg>
+            <div class="letter" id="ringLetter">–</div>
+          </div>
+          <div class="hold-label">SEGURE 3s PARA CONFIRMAR</div>
+        </div>
+      </div>
+      <div class="cam-hint">A alternativa detectada em tempo real aparece destacada em <span style="color:var(--cyan);">azul</span> ao lado. Mantenha o sinal estável.</div>
+    </div>
+
+    <div class="panel q-panel">
+      <div class="q-meta">
+        <div class="q-count" id="qCount">Pergunta 1 de 10</div>
+      </div>
+      <div class="progress-bar"><i id="qProgress" style="width:10%;"></i></div>
+      <div class="q-text" id="qText">Carregando pergunta…</div>
+      <div class="options" id="options"></div>
+      <div class="feedback" id="feedback"></div>
+      <div class="next-hint" id="nextHint">A próxima pergunta aparece automaticamente após a confirmação.</div>
+    </div>
+  </div>
+
+  <!-- END SCREEN -->
+  <div class="end-screen" id="endScreen">
+    <div class="q-count">FIM DE JOGO</div>
+    <div class="end-score"><span id="finalScore">0</span>/<span id="finalTotal">10</span></div>
+    <p id="endMsg">Mandou bem!</p>
+    <button class="btn secondary" id="restartBtn">Jogar novamente</button>
+  </div>
+
+  <footer>modelo treinado via Teachable Machine · tfjs · rodando 100% no navegador</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+<script>
+/* ============ BANCO DE PERGUNTAS ============ */
+const QUESTION_BANK = [
+  { q: "Qual é a capital do Brasil?", opts: { A: "São Paulo", B: "Rio de Janeiro", C: "Brasília", D: "Salvador" }, correct: "C" },
+  { q: "Quantos lados tem um hexágono?", opts: { A: "5", B: "6", C: "7", D: "8" }, correct: "B" },
+  { q: "Quem pintou a Mona Lisa?", opts: { A: "Michelangelo", B: "Van Gogh", C: "Da Vinci", D: "Picasso" }, correct: "C" },
+  { q: "Qual é o maior planeta do sistema solar?", opts: { A: "Terra", B: "Marte", C: "Saturno", D: "Júpiter" }, correct: "D" },
+  { q: "Em que ano o Brasil foi descoberto?", opts: { A: "1500", B: "1492", C: "1600", D: "1822" }, correct: "A" },
+  { q: "Qual é o resultado de 9 x 7?", opts: { A: "56", B: "63", C: "72", D: "81" }, correct: "B" },
+  { q: "Qual desses é um mamífero aquático?", opts: { A: "Tubarão", B: "Golfinho", C: "Polvo", D: "Estrela-do-mar" }, correct: "B" },
+  { q: "Quantos ossos tem o corpo humano adulto (aprox.)?", opts: { A: "106", B: "156", C: "206", D: "256" }, correct: "C" },
+  { q: "Qual é o rio mais extenso do mundo?", opts: { A: "Nilo", B: "Amazonas", C: "Mississippi", D: "Yangtzé" }, correct: "B" },
+  { q: "Quem escreveu 'Dom Casmurro'?", opts: { A: "José de Alencar", B: "Machado de Assis", C: "Clarice Lispector", D: "Graciliano Ramos" }, correct: "B" },
+  { q: "Qual gás os humanos exalam ao respirar?", opts: { A: "Oxigênio", B: "Hidrogênio", C: "Gás carbônico", D: "Nitrogênio" }, correct: "C" },
+  { q: "Quantas cordas tem um violão tradicional?", opts: { A: "4", B: "5", C: "6", D: "7" }, correct: "C" },
+  { q: "Qual desses países fica na América do Sul?", opts: { A: "México", B: "Peru", C: "Cuba", D: "Panamá" }, correct: "B" },
+  { q: "Qual é o estado físico da água a 0°C?", opts: { A: "Gasoso", B: "Líquido", C: "Sólido/líquido (ponto de fusão)", D: "Plasma" }, correct: "C" },
+  { q: "Qual é a moeda oficial do Japão?", opts: { A: "Won", B: "Yuan", C: "Iene", D: "Rupia" }, correct: "C" },
+  { q: "Quantos minutos tem uma partida oficial de futebol (sem prorrogação)?", opts: { A: "60", B: "80", C: "90", D: "120" }, correct: "C" },
+  { q: "Qual é o menor osso do corpo humano?", opts: { A: "Estribo (ouvido)", B: "Fêmur", C: "Fíbula", D: "Clavícula" }, correct: "A" },
+  { q: "Qual planeta é conhecido como 'planeta vermelho'?", opts: { A: "Vênus", B: "Marte", C: "Mercúrio", D: "Urano" }, correct: "B" },
+  { q: "Quem é considerado o pai da computação?", opts: { A: "Isaac Newton", B: "Alan Turing", C: "Albert Einstein", D: "Nikola Tesla" }, correct: "B" },
+  { q: "Qual é a língua mais falada no mundo (nativos)?", opts: { A: "Inglês", B: "Espanhol", C: "Mandarim", D: "Hindi" }, correct: "C" },
+];
+
+const ROUND_SIZE = 10;
+const HOLD_MS = 3000;
+const CONFIDENCE_THRESHOLD = 0.85;
+
+let model, webcam, maxPredictions;
+let round = [];
+let currentIndex = 0;
+let score = 0;
+let currentHoldLetter = null;
+let holdStart = 0;
+let answered = false;
+let rafId = null;
+
+const startScreen = document.getElementById('startScreen');
+const quizArea = document.getElementById('quizArea');
+const endScreen = document.getElementById('endScreen');
+const startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restartBtn');
+const statusMsg = document.getElementById('statusMsg');
+const scorePill = document.getElementById('scorePill');
+const scoreVal = document.getElementById('scoreVal');
+const scoreTotal = document.getElementById('scoreTotal');
+const detTag = document.getElementById('detTag');
+const confTag = document.getElementById('confTag');
+const ringFg = document.getElementById('ringFg');
+const ringLetter = document.getElementById('ringLetter');
+const qCount = document.getElementById('qCount');
+const qProgress = document.getElementById('qProgress');
+const qText = document.getElementById('qText');
+const optionsEl = document.getElementById('options');
+const feedbackEl = document.getElementById('feedback');
+const videoEl = document.getElementById('video');
+
+const RING_CIRC = 238.76;
+
+function shuffle(arr){
+  const a = [...arr];
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+function buildRound(){
+  round = shuffle(QUESTION_BANK).slice(0, ROUND_SIZE);
+  currentIndex = 0;
+  score = 0;
+  scoreTotal.textContent = round.length;
+}
+
+const MODEL_BASE_URL = "https://teachablemachine.withgoogle.com/models/ezGrR81cI/";
+
+async function initModel(){
+  const modelURL = MODEL_BASE_URL + "model.json";
+  const metadataURL = MODEL_BASE_URL + "metadata.json";
+  model = await tmImage.load(modelURL, metadataURL);
+  maxPredictions = model.getTotalClasses();
+}
+
+async function initWebcam(){
+  const flip = true;
+  webcam = new tmImage.Webcam(400, 300, flip);
+  await webcam.setup();
+  await webcam.play();
+  videoEl.srcObject = webcam.webcam.srcObject;
+  rafId = window.requestAnimationFrame(loop);
+}
+
+async function loop(){
+  webcam.update();
+  await predict();
+  rafId = window.requestAnimationFrame(loop);
+}
+
+async function predict(){
+  if(!model || answered) {
+    // still keep webcam frame fresh even when answered, but skip scoring logic
+  }
+  const prediction = await model.predict(webcam.canvas);
+  prediction.sort((a,b)=> b.probability - a.probability);
+  const top = prediction[0];
+  const label = top.className;
+  const prob = top.probability;
+
+  detTag.textContent = label ? `sinal: ${label}` : "detectando…";
+  confTag.textContent = `conf. ${Math.round(prob*100)}%`;
+
+  highlightFocused(label, prob);
+
+  if(answered){
+    resetRing();
+    return;
+  }
+
+  if(prob >= CONFIDENCE_THRESHOLD && ["A","B","C","D"].includes(label)){
+    if(currentHoldLetter === label){
+      const elapsed = performance.now() - holdStart;
+      updateRing(elapsed, label);
+      if(elapsed >= HOLD_MS){
+        confirmAnswer(label);
+      }
+    } else {
+      currentHoldLetter = label;
+      holdStart = performance.now();
+      updateRing(0, label);
+    }
+  } else {
+    currentHoldLetter = null;
+    resetRing();
+  }
+}
+
+function updateRing(elapsedMs, label){
+  const pct = Math.min(elapsedMs / HOLD_MS, 1);
+  const offset = RING_CIRC * (1 - pct);
+  ringFg.style.strokeDashoffset = offset;
+  ringLetter.textContent = label;
+}
+
+function resetRing(){
+  ringFg.style.strokeDashoffset = RING_CIRC;
+  ringLetter.textContent = "–";
+}
+
+function highlightFocused(label, prob){
+  document.querySelectorAll('.opt').forEach(el=>{
+    el.classList.remove('focused');
+  });
+  if(prob >= CONFIDENCE_THRESHOLD && ["A","B","C","D"].includes(label) && !answered){
+    const el = document.querySelector(`.opt[data-letter="${label}"]`);
+    if(el) el.classList.add('focused');
+  }
+}
+
+function renderQuestion(){
+  answered = false;
+  currentHoldLetter = null;
+  resetRing();
+  feedbackEl.className = 'feedback';
+  feedbackEl.textContent = '';
+
+  const item = round[currentIndex];
+  qCount.textContent = `Pergunta ${currentIndex+1} de ${round.length}`;
+  qProgress.style.width = `${((currentIndex)/round.length)*100 + (100/round.length)}%`;
+  qText.textContent = item.q;
+
+  optionsEl.innerHTML = '';
+  ["A","B","C","D"].forEach(letter=>{
+    const div = document.createElement('div');
+    div.className = 'opt';
+    div.dataset.letter = letter;
+    div.innerHTML = `<div class="letter-badge">${letter}</div><span class="txt">${item.opts[letter]}</span>`;
+    optionsEl.appendChild(div);
+  });
+}
+
+function confirmAnswer(letter){
+  answered = true;
+  const item = round[currentIndex];
+  const isCorrect = letter === item.correct;
+
+  document.querySelectorAll('.opt').forEach(el=> el.classList.remove('focused'));
+  const chosenEl = document.querySelector(`.opt[data-letter="${letter}"]`);
+  const correctEl = document.querySelector(`.opt[data-letter="${item.correct}"]`);
+
+  if(isCorrect){
+    score++;
+    scoreVal.textContent = score;
+    chosenEl.classList.add('correct');
+    feedbackEl.className = 'feedback show good';
+    feedbackEl.textContent = `✓ Correto! Você sinalizou ${letter}.`;
+  } else {
+    chosenEl.classList.add('wrong');
+    correctEl.classList.add('correct');
+    feedbackEl.className = 'feedback show bad';
+    feedbackEl.textContent = `✗ Você sinalizou ${letter}. Resposta certa: ${item.correct}.`;
+  }
+
+  setTimeout(()=>{
+    currentIndex++;
+    if(currentIndex >= round.length){
+      showEndScreen();
+    } else {
+      renderQuestion();
+    }
+  }, 1800);
+}
+
+function showEndScreen(){
+  quizArea.classList.remove('active');
+  endScreen.classList.add('active');
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('finalTotal').textContent = round.length;
+  const pct = score / round.length;
+  const msg = pct === 1 ? "Perfeito! Domínio total dos sinais. 🖐️"
+    : pct >= 0.7 ? "Muito bem! Sinais na ponta dos dedos."
+    : pct >= 0.4 ? "Bom começo, continue praticando os sinais."
+    : "Vamos treinar mais os sinais e tentar de novo?";
+  document.getElementById('endMsg').textContent = msg;
+}
+
+async function startQuiz(){
+  startBtn.disabled = true;
+  try{
+    statusMsg.textContent = "Carregando modelo de reconhecimento…";
+    await initModel();
+    statusMsg.textContent = "Solicitando acesso à câmera…";
+    await initWebcam();
+    statusMsg.textContent = "";
+
+    startScreen.style.display = 'none';
+    quizArea.classList.add('active');
+    scorePill.style.display = 'flex';
+
+    buildRound();
+    renderQuestion();
+  } catch(err){
+    console.error(err);
+    statusMsg.textContent = "Erro: " + (err.message || "não foi possível acessar câmera ou modelo. Verifique as permissões e se o site está rodando via servidor local (http://)");
+    startBtn.disabled = false;
+  }
+}
+
+startBtn.addEventListener('click', startQuiz);
+
+restartBtn.addEventListener('click', ()=>{
+  endScreen.classList.remove('active');
+  quizArea.classList.add('active');
+  buildRound();
+  scoreVal.textContent = 0;
+  renderQuestion();
+});
+</script>
+</body>
+</html>
