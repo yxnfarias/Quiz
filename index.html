@@ -286,6 +286,11 @@ const QUESTION_BANK = [
 const ROUND_SIZE = 10;
 const HOLD_MS = 3000;
 const CONFIDENCE_THRESHOLD = 0.85;
+const IGNORED_LABELS = ["default"];
+
+function isSignLabel(label){
+  return ["A","B","C","D"].includes(label);
+}
 
 let model, webcam, maxPredictions;
 let round = [];
@@ -368,11 +373,12 @@ async function predict(){
   const top = prediction[0];
   const label = top.className;
   const prob = top.probability;
+  const isIgnored = IGNORED_LABELS.includes((label || "").toLowerCase());
 
-  detTag.textContent = label ? `sinal: ${label}` : "detectando…";
-  confTag.textContent = `conf. ${Math.round(prob*100)}%`;
+  detTag.textContent = (label && !isIgnored) ? `sinal: ${label}` : "nenhum sinal";
+  confTag.textContent = isIgnored ? "" : `conf. ${Math.round(prob*100)}%`;
 
-  if(!readingEnabled || answered){
+  if(!readingEnabled || answered || isIgnored){
     currentHoldLetter = null;
     resetRing();
     highlightFocused(null, 0);
@@ -381,7 +387,7 @@ async function predict(){
 
   highlightFocused(label, prob);
 
-  if(prob >= CONFIDENCE_THRESHOLD && ["A","B","C","D"].includes(label)){
+  if(prob >= CONFIDENCE_THRESHOLD && isSignLabel(label)){
     if(currentHoldLetter === label){
       const elapsed = performance.now() - holdStart;
       updateRing(elapsed, label);
@@ -415,7 +421,7 @@ function highlightFocused(label, prob){
   document.querySelectorAll('.opt').forEach(el=>{
     el.classList.remove('focused');
   });
-  if(prob >= CONFIDENCE_THRESHOLD && ["A","B","C","D"].includes(label) && !answered){
+  if(prob >= CONFIDENCE_THRESHOLD && isSignLabel(label) && !answered){
     const el = document.querySelector(`.opt[data-letter="${label}"]`);
     if(el) el.classList.add('focused');
   }
