@@ -159,6 +159,16 @@
 
   .next-hint{margin-top:auto; padding-top:18px; color:var(--text-dim); font-size:0.78rem; font-family:'JetBrains Mono',monospace; text-align:center;}
 
+  .ready-row{margin-top:20px; display:flex; justify-content:center;}
+  .ready-btn{width:100%; padding:16px 20px; font-size:0.98rem; box-shadow:0 6px 0 #9db63a;}
+  .ready-row.hidden{display:none;}
+
+  .read-status{
+    font-family:'JetBrains Mono',monospace; font-size:0.72rem; letter-spacing:0.04em;
+    padding:6px 12px; border-radius:100px; background:rgba(255,255,255,0.08); color:var(--text-dim);
+  }
+  .read-status.live{background:var(--lime-dim); color:var(--lime); border:1px solid rgba(212,255,79,0.3);}
+
   /* End screen */
   .end-screen{display:none; text-align:center; padding:60px 20px;}
   .end-screen.active{display:block;}
@@ -203,6 +213,7 @@
         <div class="webcam-slot" id="webcamSlot"></div>
         <div class="detect-overlay">
           <div class="tag" id="detTag">detectando…</div>
+          <div class="read-status" id="readStatus">⏸ aguardando você clicar em "pronto"</div>
           <div class="tag" id="confTag">conf. 0%</div>
         </div>
         <div class="hold-ring-wrap">
@@ -216,7 +227,7 @@
           <div class="hold-label">SEGURE 3s PARA CONFIRMAR</div>
         </div>
       </div>
-      <div class="cam-hint">A alternativa detectada em tempo real aparece destacada em <span style="color:var(--cyan);">azul</span> ao lado. Mantenha o sinal estável.</div>
+      <div class="cam-hint">Clique em "Estou pronto" ao lado antes de fazer o sinal — só então a leitura começa. A alternativa detectada em tempo real aparece destacada em <span style="color:var(--cyan);">azul</span>.</div>
     </div>
 
     <div class="panel q-panel">
@@ -226,8 +237,11 @@
       <div class="progress-bar"><i id="qProgress" style="width:10%;"></i></div>
       <div class="q-text" id="qText">Carregando pergunta…</div>
       <div class="options" id="options"></div>
+      <div class="ready-row" id="readyRow">
+        <button class="btn ready-btn" id="readyBtn">✋ Estou pronto, pode ler o sinal</button>
+      </div>
       <div class="feedback" id="feedback"></div>
-      <div class="next-hint" id="nextHint">A próxima pergunta aparece automaticamente após a confirmação.</div>
+      <div class="next-hint" id="nextHint">Clique no botão acima quando estiver posicionado para fazer o sinal.</div>
     </div>
   </div>
 
@@ -280,6 +294,7 @@ let score = 0;
 let currentHoldLetter = null;
 let holdStart = 0;
 let answered = false;
+let readingEnabled = false;
 let rafId = null;
 
 const startScreen = document.getElementById('startScreen');
@@ -301,6 +316,9 @@ const qText = document.getElementById('qText');
 const optionsEl = document.getElementById('options');
 const feedbackEl = document.getElementById('feedback');
 const webcamSlot = document.getElementById('webcamSlot');
+const readyRow = document.getElementById('readyRow');
+const readyBtn = document.getElementById('readyBtn');
+const readStatus = document.getElementById('readStatus');
 
 const RING_CIRC = 238.76;
 
@@ -345,9 +363,6 @@ async function loop(){
 }
 
 async function predict(){
-  if(!model || answered) {
-    // still keep webcam frame fresh even when answered, but skip scoring logic
-  }
   const prediction = await model.predict(webcam.canvas);
   prediction.sort((a,b)=> b.probability - a.probability);
   const top = prediction[0];
@@ -357,12 +372,14 @@ async function predict(){
   detTag.textContent = label ? `sinal: ${label}` : "detectando…";
   confTag.textContent = `conf. ${Math.round(prob*100)}%`;
 
-  highlightFocused(label, prob);
-
-  if(answered){
+  if(!readingEnabled || answered){
+    currentHoldLetter = null;
     resetRing();
+    highlightFocused(null, 0);
     return;
   }
+
+  highlightFocused(label, prob);
 
   if(prob >= CONFIDENCE_THRESHOLD && ["A","B","C","D"].includes(label)){
     if(currentHoldLetter === label){
@@ -406,10 +423,15 @@ function highlightFocused(label, prob){
 
 function renderQuestion(){
   answered = false;
+  readingEnabled = false;
   currentHoldLetter = null;
   resetRing();
   feedbackEl.className = 'feedback';
   feedbackEl.textContent = '';
+  readyRow.classList.remove('hidden');
+  readyBtn.disabled = false;
+  readStatus.textContent = '⏸ aguardando você clicar em "pronto"';
+  readStatus.classList.remove('live');
 
   const item = round[currentIndex];
   qCount.textContent = `Pergunta ${currentIndex+1} de ${round.length}`;
@@ -426,8 +448,17 @@ function renderQuestion(){
   });
 }
 
+function enableReading(){
+  readingEnabled = true;
+  readyRow.classList.add('hidden');
+  readStatus.textContent = '● lendo o sinal…';
+  readStatus.classList.add('live');
+}
+
 function confirmAnswer(letter){
   answered = true;
+  readStatus.textContent = '✓ resposta confirmada';
+  readStatus.classList.remove('live');
   const item = round[currentIndex];
   const isCorrect = letter === item.correct;
 
@@ -494,6 +525,10 @@ async function startQuiz(){
 }
 
 startBtn.addEventListener('click', startQuiz);
+readyBtn.addEventListener('click', ()=>{
+  readyBtn.disabled = true;
+  enableReading();
+});
 
 restartBtn.addEventListener('click', ()=>{
   endScreen.classList.remove('active');
